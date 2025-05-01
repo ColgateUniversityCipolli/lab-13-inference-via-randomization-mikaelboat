@@ -202,16 +202,315 @@ difference.boot.p <- boot.pval(difference.boots)
 ################################################################################
 # Question 3
 ################################################################################
+# randomization for further data
+shifted.further <- further.dat - mu.0
+# perform (randomization) shuffling
+further.rand <- tibble(t.stat = numeric(R))
+s <- sd(further.dat)
+n <- length(further.dat)
+
+for(i in 1:R){
+  curr.rand <- shifted.further *
+    sample(x = c(-1, 1),
+           size = length(shifted.further),
+           replace = T)
+  
+  further.rand$t.stat[i] <- mean(curr.rand) / (s/sqrt(n))
+}
+
+further.rand <- further.rand |>
+  mutate(t.stat = t.stat + mu.0) 
 
 
+################################################################################
+# randomization for closer data
+shifted.closer <- closer.dat - mu.0
+# perform (randomization) shuffling
+closer.rand <- tibble(t.stat = numeric(R))
+s <- sd(closer.dat)
+n <- length(closer.dat)
 
+for(i in 1:R){
+  curr.rand <- shifted.closer *
+    sample(x = c(-1, 1),
+           size = length(shifted.closer),
+           replace = T)
+  
+  closer.rand$t.stat[i] <- mean(curr.rand) / (s/sqrt(n))
+}
+# shift back
+closer.rand <- closer.rand |>
+  mutate(t.stat = t.stat + mu.0) 
 
+################################################################################
+# randomization for difference data
+shifted.difference <- difference.dat - mu.0
+# perform (randomization) shuffling
+diff.rand <- tibble(t.stat = numeric(R))
+s <- sd(difference.dat)
+n <- length(difference.dat)
 
+for(i in 1:R){
+  curr.rand <- shifted.difference *
+    sample(x = c(-1, 1),
+           size = length(shifted.difference),
+           replace = T)
+  
+  diff.rand$t.stat[i] <- mean(curr.rand) / (s/sqrt(n))
+}
+# shift back
+diff.rand <- diff.rand |>
+  mutate(t.stat = t.stat + mu.0) 
 
+################################################################################
+# randomization p-value
+################################################################################
+# further data
+delta <- abs(mean(further.dat) - mu.0)
+low <- mu.0 - delta # mirror
+high<- mu.0 + delta   # xbar
 
+further.rand.p <- mean(further.rand$t.stat <= low) +
+  mean(further.rand$t.stat >= high)
 
+################################################################################
+# closer data
+delta <- abs(mean(closer.dat) - mu.0)
+low <- mu.0 - delta # mirror
+high<- mu.0 + delta  # xbar
 
+closer.rand.p <- mean(closer.rand$t.stat <= low) +
+  mean(closer.rand$t.stat >= high)
 
+################################################################################
+# difference data
+delta <- abs(mean(difference.dat) - mu.0)
+low <- mu.0 - delta # mirror
+high<- mu.0 + delta   # xbar
 
+difference.rand.p <- mean(diff.rand$t.stat <= low) +
+  mean(diff.rand$t.stat >= high)
 
+################################################################################
+# c) confidence interval
+################################################################################
+# for further data
+R <- 1000
+mu0.iterate <- 0.001
+starting.point <- mean(further.dat)
 
+mu.lower <- starting.point
+repeat{
+  rand <- tibble(xbars = rep(NA, R))
+  
+  # PREPROCESSING: shift the data to be mean 0 under H0
+  x.shift <- further.dat - mu.lower
+  # RANDOMIZE / SHUFFLE
+  for(i in 1:R){
+    curr.rand <- x.shift *
+      sample(x = c(-1, 1),
+             size = length(x.shift),
+             replace = T)
+    
+    rand$xbars[i] <- mean(curr.rand)
+  }
+  # Thinking is hard
+  rand <- rand |>
+    mutate(xbars = xbars + mu.lower) # shifting back
+  
+  # p-value 
+  delta <- abs(mean(further.dat) - mu.lower)
+  low <- mu.lower - delta # mirror
+  high<- mu.lower + delta   # xbar
+  p.val <- mean(rand$xbars <= low) +
+      mean(rand$xbars >= high)
+  
+  if(p.val < 0.05){
+    break
+  }else{
+    mu.lower <- mu.lower - mu0.iterate
+  }
+}
+
+mu.upper <- starting.point
+repeat{
+  rand <- tibble(xbars = rep(NA, R))
+  
+  # PREPROCESSING: shift the data to be mean 0 under H0
+  x.shift <- further.dat - mu.upper
+  # RANDOMIZE / SHUFFLE
+  for(i in 1:R){
+    curr.rand <- x.shift *
+      sample(x = c(-1, 1),
+             size = length(x.shift),
+             replace = T)
+    
+    rand$xbars[i] <- mean(curr.rand)
+  }
+  # Thinking is hard
+  rand <- rand |>
+    mutate(xbars = xbars + mu.upper) # shifting back
+  
+  # p-value 
+  (delta <- abs(mean(further.dat) - mu.upper))
+  (low <- mu.upper - delta) # mirror
+  (high<- mu.upper + delta)   # xbar
+  (p.val <- mean(rand$xbars <= low) +
+      mean(rand$xbars >= high))
+  
+  if(p.val < 0.05){
+    break
+  }else{
+    mu.upper <- mu.upper + mu0.iterate
+  }
+}
+
+further.rand.ci <- c(mu.lower, mu.upper)
+
+################################################################################
+# for closer data
+R <- 1000
+mu0.iterate <- 0.001
+starting.point <- mean(closer.dat)
+
+mu.lower <- starting.point
+repeat{
+  rand <- tibble(xbars = rep(NA, R))
+  
+  # PREPROCESSING: shift the data to be mean 0 under H0
+  x.shift <- closer.dat - mu.lower
+  # RANDOMIZE / SHUFFLE
+  for(i in 1:R){
+    curr.rand <- x.shift *
+      sample(x = c(-1, 1),
+             size = length(x.shift),
+             replace = T)
+    
+    rand$xbars[i] <- mean(curr.rand)
+  }
+  # Thinking is hard
+  rand <- rand |>
+    mutate(xbars = xbars + mu.lower) # shifting back
+  
+  # p-value 
+  delta <- abs(mean(closer.dat) - mu.lower)
+  low <- mu.lower - delta # mirror
+  high<- mu.lower + delta   # xbar
+  p.val <- mean(rand$xbars <= low) +
+      mean(rand$xbars >= high)
+  
+  if(p.val < 0.05){
+    break
+  }else{
+    mu.lower <- mu.lower - mu0.iterate
+  }
+}
+
+mu.upper <- starting.point
+repeat{
+  rand <- tibble(xbars = rep(NA, R))
+  
+  # PREPROCESSING: shift the data to be mean 0 under H0
+  x.shift <- closer.dat - mu.upper
+  # RANDOMIZE / SHUFFLE
+  for(i in 1:R){
+    curr.rand <- x.shift *
+      sample(x = c(-1, 1),
+             size = length(x.shift),
+             replace = T)
+    
+    rand$xbars[i] <- mean(curr.rand)
+  }
+  # Thinking is hard
+  rand <- rand |>
+    mutate(xbars = xbars + mu.upper) # shifting back
+  
+  # p-value 
+  delta <- abs(mean(closer.dat) - mu.upper)
+  low <- mu.upper - delta # mirror
+  high<- mu.upper + delta   # xbar
+  p.val <- mean(rand$xbars <= low) +
+      mean(rand$xbars >= high)
+  
+  if(p.val < 0.05){
+    break
+  }else{
+    mu.upper <- mu.upper + mu0.iterate
+  }
+}
+
+closer.rand.ci <- c(mu.lower, mu.upper)
+
+################################################################################
+# for difference data
+R <- 1000
+mu0.iterate <- 0.001
+starting.point <- mean(difference.dat)
+
+mu.lower <- starting.point
+repeat{
+  rand <- tibble(xbars = rep(NA, R))
+  
+  # PREPROCESSING: shift the data to be mean 0 under H0
+  x.shift <- difference.dat - mu.lower
+  # RANDOMIZE / SHUFFLE
+  for(i in 1:R){
+    curr.rand <- x.shift *
+      sample(x = c(-1, 1),
+             size = length(x.shift),
+             replace = T)
+    
+    rand$xbars[i] <- mean(curr.rand)
+  }
+  # Thinking is hard
+  rand <- rand |>
+    mutate(xbars = xbars + mu.lower) # shifting back
+  
+  # p-value 
+  delta <- abs(mean(difference.dat) - mu.lower)
+  low <- mu.lower - delta # mirror
+  high<- mu.lower + delta # xbar
+  p.val <- mean(rand$xbars <= low) +
+      mean(rand$xbars >= high)
+  
+  if(p.val < 0.05){
+    break
+  }else{
+    mu.lower <- mu.lower - mu0.iterate
+  }
+}
+
+mu.upper <- starting.point
+repeat{
+  rand <- tibble(xbars = rep(NA, R))
+  
+  # PREPROCESSING: shift the data to be mean 0 under H0
+  x.shift <- further.dat - mu.upper
+  # RANDOMIZE / SHUFFLE
+  for(i in 1:R){
+    curr.rand <- x.shift *
+      sample(x = c(-1, 1),
+             size = length(x.shift),
+             replace = T)
+    
+    rand$xbars[i] <- mean(curr.rand)
+  }
+  # Thinking is hard
+  rand <- rand |>
+    mutate(xbars = xbars + mu.upper) # shifting back
+  
+  # p-value 
+  delta <- abs(mean(further.dat) - mu.upper)
+  low <- mu.upper - delta # mirror
+  high<- mu.upper + delta   # xbar
+  p.val <- mean(rand$xbars <= low) +
+      mean(rand$xbars >= high)
+  
+  if(p.val < 0.05){
+    break
+  }else{
+    mu.upper <- mu.upper + mu0.iterate
+  }
+}
+
+difference.rand.ci <- c(mu.lower, mu.upper)
