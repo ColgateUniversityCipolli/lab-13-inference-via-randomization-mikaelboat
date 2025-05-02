@@ -23,7 +23,7 @@ n <- length(further.dat)
 gauss.pdf <- dnorm(x = t)
 gauss.cdf <- pnorm(q = t)
 
-prob <- ((skewness(further.dat) / sqrt(n)) * ((2*t^2 + 1)/6)) * gauss.pdf
+(error <- ((skewness(further.dat) / sqrt(n)) * ((2*t^2 + 1)/6)) * gauss.pdf)
 
 ################################################################################
 tVals <- seq(-10, 10, 0.1)
@@ -42,8 +42,9 @@ for(t in tVals){
 first.p <- ggplot(x = t.errors) +
   geom_line(aes(x = t.errors$t, y = t.errors$error)) +
   theme_bw() +
-  labs(y = "Error rate",
-       x = "t value")
+  labs(y = "Error",
+       x = "t-value",
+       title = "Edgeworth Approximation Error")
 
 ################################################################################
 # t-value
@@ -62,7 +63,7 @@ size <- (((skew/(6*(0.1*alpha))) * ((2*t^2) + 1) * gauss.pdf))^2
 # re-sampling for further data
 n <- length(further.dat)
 R <- 10000
-resamples.further <- tibble(t.stat = numeric(R))
+resamples.further <- tibble(t.stat = numeric(R), mean = numeric(R))
 s <- sd(further.dat)
 
 for(i in 1:R){
@@ -73,6 +74,7 @@ for(i in 1:R){
   t.stat <- mean(curr.sample) / (s/sqrt(n))
   
   resamples.further$t.stat[i] <- t.stat
+  resamples.further$mean[i] <- mean(curr.sample)
 }
 
 ################################################################################
@@ -87,7 +89,7 @@ closer.dat <- finches.dat$closer
 n <- length(closer.dat)
 R <- 10000
 s <- sd(closer.dat)
-resamples.closer <- tibble(t.stat = numeric(R))
+resamples.closer <- tibble(t.stat = numeric(R), mean = numeric(R))
 
 for (i in 1:R){
   
@@ -98,6 +100,7 @@ for (i in 1:R){
   t.stat <- mean(curr.sample) / (s/sqrt(n))
                       
   resamples.closer$t.stat[i] <- t.stat
+  resamples.closer$mean[i] <- mean(curr.sample)
 }
 
 ################################################################################
@@ -114,7 +117,7 @@ difference.dat <- finches.dat$diff
 n <- length(closer.dat)
 R <- 10000
 s <- sd(difference.dat)
-resamples.difference <- tibble(t.stat = numeric(R))
+resamples.difference <- tibble(t.stat = numeric(R), mean = numeric(R))
 
 for (i in 1:R){
   
@@ -125,6 +128,7 @@ for (i in 1:R){
   t.stat <- mean(curr.sample) / (s/sqrt(n))
   
   resamples.difference$t.stat[i] <- t.stat
+  resamples.difference$mean[i] <- mean(curr.sample)
 }
 #################################################################################
 # diff bootstrapping
@@ -141,71 +145,65 @@ further.boot.p <- mean(resamples.null.further$t.shifted <= f.delta )
 further.t.p <- (t.test(x = further.dat, mu = 0, alternative = "less"))$p.value
 
 # closer
-closer.boot.p <- mean(resamples.null.closer$t.shifted <= c.delta)
+closer.boot.p <- mean(resamples.null.closer$t.shifted >= c.delta)
 closer.t.p <- (t.test(x = closer.dat, mu = 0, alternative = "greater"))$p.value
 
 # difference
-low <- mean(resamples.null.diff$t.shifted <= d.delta)
+low <- mean(resamples.null.diff$t.shifted <= -d.delta)
 high <- mean(resamples.null.diff$t.shifted >= d.delta)
 diff.boot.p <- low + high
 diff.t.p <- (t.test(x = difference.dat, mu = 0, alternative = "two.sided"))$p.value
-
+boot.p.summary <- tibble(data = c("further", "closer", "difference"),
+                         t.test.p = c(further.t.p, closer.t.p, diff.t.p),
+                         boot.p = c(further.boot.p, closer.boot.p, diff.boot.p))
 ################################################################################
 # 2(c) 5th percentile
 ################################################################################
 further.boot.ptl <- quantile(resamples.null.further$t.shifted, 0.05)
 further.t.ptl <- qt(0.05, df = n - 1)
 
-closer.boot.ptl <- quantile(resamples.null.closer$t.shifted, 0.95)
-closer.t.ptl <- qt(0.95, df = n - 1)
+closer.boot.ptl <- quantile(resamples.null.closer$t.shifted, 0.05)
+closer.t.ptl <- qt(0.05, df = n - 1)
 
 diff.boot.ptl <- quantile(resamples.null.diff$t.shifted, 0.05)
 diff.t.ptl <- qt(0.05, df = n - 1)
-
+percentile.summary <- tibble(data = c("further", "closer", "difference"),
+                         t.test.p = c(further.t.ptl, closer.t.ptl, diff.t.ptl),
+                         boot.p = c(further.boot.ptl, closer.boot.ptl, diff.boot.ptl))
 ################################################################################
 # 2(d) Bootstrap CI
 ################################################################################
-# boot function
-boot.t.stat <- function(d, i){
-  n <- length(d[i])
-  s <- sd(d[i])
-  mean(d[i]) / (s/sqrt(n))
-}
+# further
+further.boot.ci <-quantile(resamples.further$mean, c(0.025, 0.975))
+further.t.ci <- t.test(further.dat, mu = 0, conf.level = 0.95, 
+                       alternative = "two.sided")$conf.int
 
-################################################################################
-# further bootstrapping
-further.boots <- boot(data = further.dat,
-              statistic = boot.t.stat,
-              R = R)
-
-further.boot.ci <- boot.ci(further.boots, type = "bca")
-further.boot.p <- boot.pval(further.boots)
+# closer
+closer.boot.ci = quantile(resamples.closer$mean, c(0.025, 0.975))
+closer.t.ci <- t.test(closer.dat, mu = 0, conf.level = 0.95, 
+                       alternative = "two.sided")$conf.int
 
 
-# closer bootstrapping
-closer.boots <- boot(data = closer.dat,
-                      statistic = boot.t.stat,
-                      R = R)
+diff.boot.ci = quantile(resamples.difference$mean, c(0.025, 0.975))
+diff.t.ci <- t.test(difference.dat, mu = 0, conf.level = 0.95, 
+                       alternative = "two.sided")$conf.int
 
-closer.boot.ci <- boot.ci(closer.boots, type = "bca")
-closer.boot.p <- boot.pval(closer.boots)
-
-# difference bootstrapping
-difference.boots <- boot(data = difference.dat,
-                      statistic = boot.t.stat,
-                      R = R)
-
-difference.boot.ci <- boot.ci(difference.boots, type = "bca")
-difference.boot.p <- boot.pval(difference.boots)
-
-
+# further 
+further.boot.ci # bootstrapping confidence interval
+further.t.ci # t.test confidence interval
+# closer
+closer.boot.ci
+closer.t.ci
+# difference
+diff.boot.ci
+diff.t.ci
 ################################################################################
 # Question 3
 ################################################################################
 # randomization for further data
 shifted.further <- further.dat - mu.0
 # perform (randomization) shuffling
-further.rand <- tibble(t.stat = numeric(R))
+further.rand <- tibble(mean = numeric(R))
 s <- sd(further.dat)
 n <- length(further.dat)
 
@@ -215,18 +213,18 @@ for(i in 1:R){
            size = length(shifted.further),
            replace = T)
   
-  further.rand$t.stat[i] <- mean(curr.rand) / (s/sqrt(n))
+  further.rand$mean[i] <- mean(curr.rand)
 }
 
 further.rand <- further.rand |>
-  mutate(t.stat = t.stat + mu.0) 
+  mutate(mean = mean + mu.0) 
 
 
 ################################################################################
 # randomization for closer data
 shifted.closer <- closer.dat - mu.0
 # perform (randomization) shuffling
-closer.rand <- tibble(t.stat = numeric(R))
+closer.rand <- tibble(mean = numeric(R))
 s <- sd(closer.dat)
 n <- length(closer.dat)
 
@@ -236,17 +234,17 @@ for(i in 1:R){
            size = length(shifted.closer),
            replace = T)
   
-  closer.rand$t.stat[i] <- mean(curr.rand) / (s/sqrt(n))
+  closer.rand$mean[i] <- mean(curr.rand)
 }
 # shift back
 closer.rand <- closer.rand |>
-  mutate(t.stat = t.stat + mu.0) 
+  mutate(mean = mean + mu.0) 
 
 ################################################################################
 # randomization for difference data
 shifted.difference <- difference.dat - mu.0
 # perform (randomization) shuffling
-diff.rand <- tibble(t.stat = numeric(R))
+diff.rand <- tibble(mean = numeric(R))
 s <- sd(difference.dat)
 n <- length(difference.dat)
 
@@ -256,11 +254,11 @@ for(i in 1:R){
            size = length(shifted.difference),
            replace = T)
   
-  diff.rand$t.stat[i] <- mean(curr.rand) / (s/sqrt(n))
+  diff.rand$mean[i] <- mean(curr.rand)
 }
 # shift back
 diff.rand <- diff.rand |>
-  mutate(t.stat = t.stat + mu.0) 
+  mutate(mean = mean + mu.0) 
 
 ################################################################################
 # randomization p-value
@@ -270,8 +268,8 @@ delta <- abs(mean(further.dat) - mu.0)
 low <- mu.0 - delta # mirror
 high<- mu.0 + delta   # xbar
 
-further.rand.p <- mean(further.rand$t.stat <= low) +
-  mean(further.rand$t.stat >= high)
+further.rand.p <- mean(further.rand$mean <= low) +
+  mean(further.rand$mean >= high)
 
 ################################################################################
 # closer data
@@ -279,8 +277,8 @@ delta <- abs(mean(closer.dat) - mu.0)
 low <- mu.0 - delta # mirror
 high<- mu.0 + delta  # xbar
 
-closer.rand.p <- mean(closer.rand$t.stat <= low) +
-  mean(closer.rand$t.stat >= high)
+closer.rand.p <- mean(closer.rand$mean <= low) +
+  mean(closer.rand$mean >= high)
 
 ################################################################################
 # difference data
@@ -288,9 +286,11 @@ delta <- abs(mean(difference.dat) - mu.0)
 low <- mu.0 - delta # mirror
 high<- mu.0 + delta   # xbar
 
-difference.rand.p <- mean(diff.rand$t.stat <= low) +
-  mean(diff.rand$t.stat >= high)
+diff.rand.p <- mean(diff.rand$mean <= low) +
+  mean(diff.rand$mean >= high)
 
+random.p.summary <- tibble(data = c("further", "closer", "difference"),
+                           p_value = c(further.rand.p, closer.rand.p, diff.rand.p))
 ################################################################################
 # c) confidence interval
 ################################################################################
@@ -519,7 +519,6 @@ difference.rand.ci <- c(mu.lower, mu.upper)
 ################################################################################
 # question 4
 ################################################################################
-# using the closer data for the hypothesis test
 R <- 10000
 n <- 25
 alpha <- 0.05
@@ -528,13 +527,11 @@ type1_fixed <- numeric(R)
 type1_resample <- numeric(R)
 
 for (i in 1:R) {
-  #x <- closer.dat
+  #x <- resamples.further$t.stat
   x <- rnorm(n, mean = mu)
   s_fixed <- sd(x)
-  
   # using original sd
   t_fixed <- mean(x) / (s_fixed / sqrt(n))
-  
   # using resample sd
   resample <- sample(x, 
                      size = n, 
