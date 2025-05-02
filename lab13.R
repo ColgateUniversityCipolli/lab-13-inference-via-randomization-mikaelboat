@@ -54,7 +54,7 @@ gauss.cdf <- pnorm(q = t)
 alpha <- 0.05
 skew <- skewness(further.dat)
 
-n <- (((skew/(6*(0.1*alpha))) * ((2*t^2) + 1) * gauss.pdf))^2
+size <- (((skew/(6*(0.1*alpha))) * ((2*t^2) + 1) * gauss.pdf))^2
 
 ################################################################################
 # Question 2
@@ -86,7 +86,7 @@ resamples.null.further <- resamples.further |>
 closer.dat <- finches.dat$closer
 n <- length(closer.dat)
 R <- 10000
-s < sd(closer.dat)
+s <- sd(closer.dat)
 resamples.closer <- tibble(t.stat = numeric(R))
 
 for (i in 1:R){
@@ -137,7 +137,7 @@ resamples.null.diff <- resamples.difference |>
 # 2(b) compute bootstrap p-value
 ################################################################################
 # further
-further.boot.p <- mean(resamples.null.further$t.shifted <= f.delta)
+further.boot.p <- mean(resamples.null.further$t.shifted <= f.delta )
 further.t.p <- (t.test(x = further.dat, mu = 0, alternative = "less"))$p.value
 
 # closer
@@ -156,8 +156,8 @@ diff.t.p <- (t.test(x = difference.dat, mu = 0, alternative = "two.sided"))$p.va
 further.boot.ptl <- quantile(resamples.null.further$t.shifted, 0.05)
 further.t.ptl <- qt(0.05, df = n - 1)
 
-closer.boot.ptl <- quantile(resamples.null.closer$t.shifted, 0.05)
-closer.t.ptl <- qt(0.05, df = n - 1)
+closer.boot.ptl <- quantile(resamples.null.closer$t.shifted, 0.95)
+closer.t.ptl <- qt(0.95, df = n - 1)
 
 diff.boot.ptl <- quantile(resamples.null.diff$t.shifted, 0.05)
 diff.t.ptl <- qt(0.05, df = n - 1)
@@ -347,16 +347,17 @@ repeat{
     
     rand$xbars[i] <- mean(curr.rand)
   }
-  # Thinking is hard
+  
+  # thinking is hard
   rand <- rand |>
     mutate(xbars = xbars + mu.upper) # shifting back
   
   # p-value 
-  (delta <- abs(mean(further.dat) - mu.upper))
-  (low <- mu.upper - delta) # mirror
-  (high<- mu.upper + delta)   # xbar
-  (p.val <- mean(rand$xbars <= low) +
-      mean(rand$xbars >= high))
+  delta <- abs(mean(further.dat) - mu.upper)
+  low <- mu.upper - delta # mirror
+  high<- mu.upper + delta   # xbar
+  p.val <- mean(rand$xbars <= low) +
+      mean(rand$xbars >= high)
   
   if(p.val < 0.05){
     break
@@ -485,7 +486,7 @@ repeat{
   rand <- tibble(xbars = rep(NA, R))
   
   # PREPROCESSING: shift the data to be mean 0 under H0
-  x.shift <- further.dat - mu.upper
+  x.shift <- difference.dat - mu.upper
   # RANDOMIZE / SHUFFLE
   for(i in 1:R){
     curr.rand <- x.shift *
@@ -500,9 +501,9 @@ repeat{
     mutate(xbars = xbars + mu.upper) # shifting back
   
   # p-value 
-  delta <- abs(mean(further.dat) - mu.upper)
+  delta <- abs(mean(difference.dat) - mu.upper)
   low <- mu.upper - delta # mirror
-  high<- mu.upper + delta   # xbar
+  high<- mu.upper + delta   
   p.val <- mean(rand$xbars <= low) +
       mean(rand$xbars >= high)
   
@@ -514,3 +515,77 @@ repeat{
 }
 
 difference.rand.ci <- c(mu.lower, mu.upper)
+
+################################################################################
+# question 4
+################################################################################
+# using the closer data for the hypothesis test
+R <- 10000
+n <- 25
+alpha <- 0.05
+mu <- 0
+type1_fixed <- numeric(R)
+type1_resample <- numeric(R)
+
+for (i in 1:R) {
+  #x <- closer.dat
+  x <- rnorm(n, mean = mu)
+  s_fixed <- sd(x)
+  
+  # using original sd
+  t_fixed <- mean(x) / (s_fixed / sqrt(n))
+  
+  # using resample sd
+  resample <- sample(x, 
+                     size = n, 
+                     replace = TRUE)
+  
+  s_resample <- sd(resample)
+  t_resample <- mean(resample) / (s_resample / sqrt(n))
+
+  type1_fixed[i] <- (t_fixed < qt(0.05, n - 1))
+  type1_resample[i] <- (t_resample < qt(0.05, n - 1))
+}
+
+mean(type1_fixed)    
+mean(type1_resample)
+
+
+################################################################################
+# confidence interval coverage
+R <- 1000
+n <- 25
+mu <- 0
+coverage_fixed <- numeric(R)
+coverage_resample <- numeric(R)
+
+# function for CI using original sd
+boot.stat.fixed <- function(d, i){ 
+  s_fixed <- sd(x)
+  mean(d[i]) / (s_fixed / sqrt(n))
+}
+
+# function for CI using resample sd
+boot.stat.resample <- function(d, i) {
+  x_i <- d[i]
+  mean(x_i) / (sd(x_i) / sqrt(n))
+}
+
+for (i in 1:R) {
+  x <- rnorm(n, mean = mu)
+  
+  boots_fixed <- boot(data = x, 
+                      statistic = boot.stat.fixed, 
+                      R = 1000)
+  ci_fixed <- boot.ci(boots_fixed, 
+                      type = "bca")$bca[4:5]
+  coverage_fixed[i] <- (mu >= ci_fixed[1] & mu <= ci_fixed[2])
+  
+  # boot ci using resample sd
+  boots_resample <- boot(data = x, statistic = boot.stat.resample, R = 1000)
+  ci_resample <- boot.ci(boots_resample, type = "bca")$bca[4:5]
+  coverage_resample[i] <- (mu >= ci_resample[1] & mu <= ci_resample[2])
+}
+
+mean(coverage_fixed)    
+mean(coverage_resample)  
